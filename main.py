@@ -1,12 +1,48 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
 from app.bigram_model import BigramModel
 import spacy
+import torch
+from PIL import Image
+import torchvision.transforms as transforms
+from app.cnn_model import AssignmentCNN
 
 nlp = spacy.load("en_core_web_lg")
 
 app = FastAPI()
+
+classes = [
+    "airplane",
+    "automobile",
+    "bird",
+    "cat",
+    "deer",
+    "dog",
+    "frog",
+    "horse",
+    "ship",
+    "truck",
+]
+
+device = (
+    torch.device("mps")
+    if torch.backends.mps.is_available()
+    else torch.device("cuda")
+    if torch.cuda.is_available()
+    else torch.device("cpu")
+)
+
+cnn_model = AssignmentCNN().to(device)
+cnn_model.load_state_dict(
+    torch.load("cnn_cifar10.pth", map_location=device)
+)
+cnn_model.eval()
+
+image_transform = transforms.Compose([
+    transforms.Resize((64, 64)),
+    transforms.ToTensor()
+])
 
 corpus = [
     "The Count of Monte Cristo is a novel written by Alexandre Dumas. "
@@ -69,4 +105,21 @@ def get_similarity(request: SimilarityRequest):
         "word1": request.word1,
         "word2": request.word2,
         "similarity": float(similarity)
+    }
+
+@app.post("/predict")
+async def predict_image(file: UploadFile = File(...)):
+    image = Image.open(file.file).convert("RGB")
+    image_tensor = image_transform(image).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        outputs = cnn_model(image_tensor)
+        _, predicted = torch.max(outputs, 1)
+
+    class_index = predicted.item()
+    class_name = classes[class_index]
+
+    return {
+        "class_index": class_index,
+        "class_name": class_name
     }
