@@ -4,9 +4,11 @@ from pydantic import BaseModel
 from app.bigram_model import BigramModel
 import spacy
 import torch
+import torch.nn as nn
 from PIL import Image
 import torchvision.transforms as transforms
 from app.cnn_model import AssignmentCNN
+from app.gan_model import Generator, Discriminator
 
 nlp = spacy.load("en_core_web_lg")
 
@@ -16,7 +18,7 @@ classes = [
     "airplane",
     "automobile",
     "bird",
-    "cat",
+    "cat",   
     "deer",
     "dog",
     "frog",
@@ -122,4 +124,38 @@ async def predict_image(file: UploadFile = File(...)):
     return {
         "class_index": class_index,
         "class_name": class_name
+    }
+
+
+
+   
+
+gan_generator = Generator(z_dim=100).to(device)
+
+try:
+    gan_generator.load_state_dict(
+        torch.load("gan_generator.pth", map_location=device)
+    )
+    gan_generator.eval()
+    print("GAN generator loaded.")
+except (FileNotFoundError, RuntimeError) as error:
+    print(f"GAN model not loaded: {error}")
+    print("Using untrained generator.")
+
+
+@app.get("/generate-digit")
+def generate_digit():
+    gan_generator.eval()
+
+    noise = torch.randn(1, 100).to(device)
+
+    with torch.no_grad():
+        fake_image = gan_generator(noise).cpu()
+
+    image_array = fake_image.squeeze().tolist()
+
+    return {
+        "message": "Generated one MNIST-like digit image",
+        "image_shape": [1, 28, 28],
+        "image": image_array
     }
