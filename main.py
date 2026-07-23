@@ -1,17 +1,21 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from pydantic import BaseModel
 
 from app.bigram_model import BigramModel
 from app.rnn_model import RNNTextGenerator
+from app.energy_model import EnergyBasedImageGenerator
+from app.diffusion_model import DiffusionImageGenerator
 import spacy
 import torch
-import torch.nn as nn
 from PIL import Image
 import torchvision.transforms as transforms
 from app.cnn_model import AssignmentCNN
-from app.gan_model import Generator, Discriminator
+from app.gan_model import Generator
 
-nlp = spacy.load("en_core_web_lg")
+try:
+    nlp = spacy.load("en_core_web_lg")
+except OSError:
+    nlp = spacy.blank("en")
 
 app = FastAPI()
 
@@ -37,10 +41,14 @@ device = (
 )
 
 cnn_model = AssignmentCNN().to(device)
-cnn_model.load_state_dict(
-    torch.load("cnn_cifar10.pth", map_location=device)
-)
-cnn_model.eval()
+try:
+    cnn_model.load_state_dict(
+        torch.load("cnn_cifar10.pth", map_location=device)
+    )
+    cnn_model.eval()
+except (FileNotFoundError, RuntimeError) as error:
+    cnn_model = None
+    print(f"CNN model not loaded: {error}")
 
 image_transform = transforms.Compose([
     transforms.Resize((64, 64)),
@@ -58,11 +66,18 @@ corpus = [
 bigram_model = BigramModel(corpus)
 rnn_model = RNNTextGenerator(corpus, device=torch.device("cpu"))
 rnn_model.train_model()
+energy_generator = EnergyBasedImageGenerator(device=torch.device("cpu"))
+diffusion_generator = DiffusionImageGenerator(device=torch.device("cpu"))
 
 
 class TextGenerationRequest(BaseModel):
     start_word: str
     length: int
+
+
+class ImageGenerationRequest(BaseModel):
+    steps: int = 30
+    seed: int | None = None
 
 class EmbeddingRequest(BaseModel):
     word: str
@@ -126,6 +141,12 @@ def get_similarity(request: SimilarityRequest):
 
 @app.post("/predict")
 async def predict_image(file: UploadFile = File(...)):
+    if cnn_model is None:
+        raise HTTPException(
+            status_code=503,
+            detail="CNN model weights are not available."
+        )
+
     image = Image.open(file.file).convert("RGB")
     image_tensor = image_transform(image).unsqueeze(0).to(device)
 
@@ -139,6 +160,32 @@ async def predict_image(file: UploadFile = File(...)):
     return {
         "class_index": class_index,
         "class_name": class_name
+    }
+
+
+@app.post("/generate_energy_image")
+def generate_energy_image(request: ImageGenerationRequest):
+    result = energy_generator.generate(
+        steps=request.steps,
+        seed=request.seed
+    )
+
+    return {
+        "message": "Generated a CIFAR-sized image using EBM sampling",
+        **result
+    }
+
+
+@app.post("/generate_diffusion_image")
+def generate_diffusion_image(request: ImageGenerationRequest):
+    result = diffusion_generator.generate(
+        steps=request.steps,
+        seed=request.seed
+    )
+
+    return {
+        "message": "Generated a CIFAR-sized image using diffusion sampling",
+        **result
     }
 
 

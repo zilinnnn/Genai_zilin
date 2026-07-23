@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.13-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates
 
@@ -13,6 +13,7 @@ WORKDIR /code
 COPY pyproject.toml uv.lock /code/
 
 RUN uv sync --frozen
+RUN uv pip install --python .venv/bin/python torch torchvision pillow
 
 COPY ./app /code/app
 COPY main.py /code/
