@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 
 from app.bigram_model import BigramModel
+from app.rnn_model import RNNTextGenerator
 import spacy
 import torch
 import torch.nn as nn
@@ -55,6 +56,8 @@ corpus = [
 ]
 
 bigram_model = BigramModel(corpus)
+rnn_model = RNNTextGenerator(corpus, device=torch.device("cpu"))
+rnn_model.train_model()
 
 
 class TextGenerationRequest(BaseModel):
@@ -77,6 +80,18 @@ def read_root():
 @app.post("/generate")
 def generate_text(request: TextGenerationRequest):
     generated_text = bigram_model.generate_text(
+        request.start_word,
+        request.length
+    )
+
+    return {
+        "generated_text": generated_text
+    }
+
+
+@app.post("/generate_with_rnn")
+def generate_with_rnn(request: TextGenerationRequest):
+    generated_text = rnn_model.generate_text(
         request.start_word,
         request.length
     )
