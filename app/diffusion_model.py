@@ -40,10 +40,12 @@ class DiffusionImageGenerator:
     def __init__(self, device=None, weights_path="diffusion_model.pth"):
         self.device = device or torch.device("cpu")
         self.model = SmallDenoiser().to(self.device)
+        self.is_loaded = False
         try:
             self.model.load_state_dict(
                 torch.load(weights_path, map_location=self.device)
             )
+            self.is_loaded = True
             print("Diffusion model loaded.")
         except (FileNotFoundError, RuntimeError) as error:
             print(f"Diffusion model not loaded: {error}")

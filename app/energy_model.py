@@ -25,10 +25,12 @@ class EnergyBasedImageGenerator:
     def __init__(self, device=None, weights_path="energy_model.pth"):
         self.device = device or torch.device("cpu")
         self.model = EnergyModel().to(self.device)
+        self.is_loaded = False
         try:
             self.model.load_state_dict(
                 torch.load(weights_path, map_location=self.device)
             )
+            self.is_loaded = True
             print("Energy model loaded.")
         except (FileNotFoundError, RuntimeError) as error:
             print(f"Energy model not loaded: {error}")

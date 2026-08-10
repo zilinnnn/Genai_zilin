@@ -165,6 +165,12 @@ async def predict_image(file: UploadFile = File(...)):
 
 @app.post("/generate_energy_image")
 def generate_energy_image(request: ImageGenerationRequest):
+    if not energy_generator.is_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="Energy model weights are not available. Run train_energy_model.py first."
+        )
+
     result = energy_generator.generate(
         steps=request.steps,
         seed=request.seed
@@ -178,6 +184,12 @@ def generate_energy_image(request: ImageGenerationRequest):
 
 @app.post("/generate_diffusion_image")
 def generate_diffusion_image(request: ImageGenerationRequest):
+    if not diffusion_generator.is_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="Diffusion model weights are not available. Run train_diffusion_model.py first."
+        )
+
     result = diffusion_generator.generate(
         steps=request.steps,
         seed=request.seed
