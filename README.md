@@ -154,6 +154,30 @@ Example response:
 }
 ```
 
+## Docker Deployment
+
+The Docker image builds a FastAPI server and creates the Assignment 5 RL text model checkpoint during the image build.
+
+Build the image:
+
+```bash
+docker build -t sps-genai .
+```
+
+Run the API:
+
+```bash
+docker run --rm -p 8000:80 sps-genai
+```
+
+Then query the Assignment 5 endpoint:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/generate_with_rl" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How does reinforcement learning help text generation?", "max_words": 24, "seed": 42}'
+```
+
 ## Repository Notes
 
 - `data/` is ignored because CIFAR-10 is downloaded automatically by the training scripts.
