@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.bigram_model import BigramModel
 from app.rnn_model import RNNTextGenerator
+from app.rl_text_model import RLTextGenerator, build_rl_training_corpus
 from app.energy_model import EnergyBasedImageGenerator
 from app.diffusion_model import DiffusionImageGenerator
 import spacy
@@ -66,6 +67,12 @@ corpus = [
 bigram_model = BigramModel(corpus)
 rnn_model = RNNTextGenerator(corpus, device=torch.device("cpu"))
 rnn_model.train_model()
+rl_model = RLTextGenerator(build_rl_training_corpus(), device=torch.device("cpu"))
+try:
+    rl_model.load("rl_text_model.pth")
+    print("RL text model loaded.")
+except (FileNotFoundError, RuntimeError, KeyError) as error:
+    print(f"RL text model not loaded: {error}")
 energy_generator = EnergyBasedImageGenerator(device=torch.device("cpu"))
 diffusion_generator = DiffusionImageGenerator(device=torch.device("cpu"))
 
@@ -73,6 +80,12 @@ diffusion_generator = DiffusionImageGenerator(device=torch.device("cpu"))
 class TextGenerationRequest(BaseModel):
     start_word: str
     length: int
+
+
+class RLTextGenerationRequest(BaseModel):
+    question: str
+    max_words: int = 24
+    seed: int | None = None
 
 
 class ImageGenerationRequest(BaseModel):
@@ -113,6 +126,31 @@ def generate_with_rnn(request: TextGenerationRequest):
 
     return {
         "generated_text": generated_text
+    }
+
+
+@app.post("/generate_with_rl")
+def generate_with_rl(request: RLTextGenerationRequest):
+    if not rl_model.is_trained:
+        raise HTTPException(
+            status_code=503,
+            detail="RL text model weights are not available. Run train_rl_text_model.py first."
+        )
+
+    if request.seed is not None:
+        torch.manual_seed(request.seed)
+
+    generated_text = rl_model.generate_text(
+        request.question,
+        max_words=request.max_words
+    )
+
+    return {
+        "question": request.question,
+        "required_start": "That is a great question",
+        "required_end": "Let me know if you have any other questions.",
+        "generated_text": generated_text,
+        "reward": rl_model.reward_text(generated_text),
     }
 
 @app.post("/embedding")

@@ -95,13 +95,68 @@ The repository also includes earlier class activity endpoints for:
 
 - bigram text generation: `POST /generate`
 - RNN text generation: `POST /generate_with_rnn`
+- RL post-trained text generation: `POST /generate_with_rl`
 - word embeddings: `POST /embedding`
 - word similarity: `POST /similarity`
 - CIFAR-10 image classification: `POST /predict`
 - MNIST-like GAN image generation: `GET /generate-digit`
+
+## Assignment 5: Post-Training with RL
+
+Assignment 5 uses reinforcement learning to post-train a text generation model so that its answer follows a required format. This implementation rewards outputs that:
+
+- start with `That is a great question`
+- end with `Let me know if you have any other questions.`
+- contain enough generated content between the required opening and closing phrases
+
+The RL code is in:
+
+- `app/rl_text_model.py`
+- `train_rl_text_model.py`
+
+Train the RL post-trained text model:
+
+```bash
+python train_rl_text_model.py
+```
+
+This saves:
+
+```text
+rl_text_model.pth
+```
+
+The training script first warm-starts the small RNN text model with supervised next-token training, then applies a REINFORCE-style policy-gradient update using the formatting reward.
+
+Run the API:
+
+```bash
+fastapi dev main.py
+```
+
+Generate a formatted answer:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/generate_with_rl" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "How does reinforcement learning help text generation?", "max_words": 24, "seed": 42}'
+```
+
+Example response:
+
+```json
+{
+  "question": "How does reinforcement learning help text generation?",
+  "required_start": "That is a great question",
+  "required_end": "Let me know if you have any other questions.",
+  "generated_text": "That is a great question ... Let me know if you have any other questions.",
+  "reward": 2.25
+}
+```
 
 ## Repository Notes
 
 - `data/` is ignored because CIFAR-10 is downloaded automatically by the training scripts.
 - `*.pth` is ignored because trained weights are generated locally.
 - Run the two Assignment 4 training scripts before testing the image generation endpoints.
+- Run `train_rl_text_model.py` before testing the Assignment 5 RL text endpoint.
